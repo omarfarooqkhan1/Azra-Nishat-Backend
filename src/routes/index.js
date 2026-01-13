@@ -1,0 +1,32 @@
+const router = require('express').Router();
+const authRoutes = require('./auth');
+const userRoutes = require('./users');
+const productRoutes = require('./products');
+const categoryRoutes = require('./categories');
+const orderRoutes = require('./orders');
+const cartRoutes = require('./cart');
+const wishlistRoutes = require('./wishlist');
+const reviewRoutes = require('./reviews');
+const paymentRoutes = require('./payments');
+const searchRoutes = require('./search');
+const addressRoutes = require('./addresses');
+const adminRoutes = require('./admin');
+const contactRoutes = require('./contact');
+const uploadRoutes = require('./upload');
+
+router.use('/auth', authRoutes);
+router.use('/users', userRoutes);
+router.use('/products', productRoutes);
+router.use('/categories', categoryRoutes);
+router.use('/orders', orderRoutes);
+router.use('/cart', cartRoutes);
+router.use('/wishlist', wishlistRoutes);
+router.use('/reviews', reviewRoutes);
+router.use('/payments', paymentRoutes);
+router.use('/search', searchRoutes);
+router.use('/addresses', addressRoutes);
+router.use('/admin', adminRoutes);
+router.use('/contact', contactRoutes);
+router.use('/upload', uploadRoutes);
+
+module.exports = router;
