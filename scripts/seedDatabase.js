@@ -456,43 +456,56 @@ const sampleOrders = [
 const seedDatabase = async () => {
   try {
     await connectDB();
-    
+
     // Clear existing data
     console.log('Clearing existing data...');
     await User.deleteMany({});
     await Category.deleteMany({});
     await Product.deleteMany({});
     await Order.deleteMany({});
-    
+
+    // Clear Redis Cache
+    console.log('Clearing Redis cache...');
+    const redis = require('redis');
+    const redisClient = redis.createClient({
+      url: process.env.REDIS_URL || 'redis://localhost:6379'
+    });
+
+    redisClient.on('error', (err) => console.error('Redis Client Error', err));
+
+    await redisClient.connect();
+    await redisClient.flushAll();
+    await redisClient.quit();
+
     // Create categories
     console.log('Creating categories...');
     let createdCategories = await Category.insertMany(sampleCategories);
-    
+
     // Update parent categories for subcategories
     const jewelryCategory = createdCategories.find(cat => cat.name === 'Jewelry');
     const cosmeticsCategory = createdCategories.find(cat => cat.name === 'Cosmetics');
-    
+
     // Update subcategories with parent references
     const ringsCategory = createdCategories.find(cat => cat.name === 'Rings');
     const earringsCategory = createdCategories.find(cat => cat.name === 'Earrings');
     const necklacesCategory = createdCategories.find(cat => cat.name === 'Necklaces');
     const skincareCategory = createdCategories.find(cat => cat.name === 'Skincare');
     const makeupCategory = createdCategories.find(cat => cat.name === 'Makeup');
-    
+
     if (jewelryCategory) {
       await Category.findByIdAndUpdate(ringsCategory._id, { parentCategory: jewelryCategory._id, level: 2 });
       await Category.findByIdAndUpdate(earringsCategory._id, { parentCategory: jewelryCategory._id, level: 2 });
       await Category.findByIdAndUpdate(necklacesCategory._id, { parentCategory: jewelryCategory._id, level: 2 });
     }
-    
+
     if (cosmeticsCategory) {
       await Category.findByIdAndUpdate(skincareCategory._id, { parentCategory: cosmeticsCategory._id, level: 2 });
       await Category.findByIdAndUpdate(makeupCategory._id, { parentCategory: cosmeticsCategory._id, level: 2 });
     }
-    
+
     // Refresh the categories list after updates
     createdCategories = await Category.find({});
-    
+
     // Create users
     console.log('Creating users...');
     // Hash passwords for all users
@@ -508,33 +521,61 @@ const seedDatabase = async () => {
       })
     );
     const createdUsers = await User.insertMany(usersWithHashedPasswords);
-    
+
     // Create products with category references
     console.log('Creating products...');
     const updatedSampleProducts = sampleProducts.map(product => {
+      let categoryId;
+
       // Assign the first category (Jewelry) to products that should have it
       if (product.name.includes('Earring') || product.name.includes('Chain')) {
         const category = createdCategories.find(cat => cat.name === 'Jewelry');
-        return { ...product, category: category._id };
+        categoryId = category._id;
       } else if (product.name.includes('Foundation')) {
         const category = createdCategories.find(cat => cat.name === 'Cosmetics');
-        return { ...product, category: category._id };
+        categoryId = category._id;
       } else if (product.name.includes('Gown')) {
         const category = createdCategories.find(cat => cat.name === 'Couture');
-        return { ...product, category: category._id };
+        categoryId = category._id;
+      } else {
+        // Default to first category if none match
+        categoryId = createdCategories[0]._id;
       }
-      // Default to first category if none match
-      return { ...product, category: createdCategories[0]._id };
+
+      // Calculate price from variants for the root product document
+      // This is necessary because insertMany bypasses the pre-save hook where this logic usually lives
+      let price = 0;
+      let salePrice = undefined;
+      let isOnSale = false;
+
+      if (product.variants && product.variants.length > 0) {
+        const prices = product.variants.map(v => v.price);
+        const salePrices = product.variants.map(v => v.salePrice).filter(p => p != null && p > 0);
+
+        price = Math.min(...prices);
+        if (salePrices.length > 0) {
+          salePrice = Math.min(...salePrices);
+          isOnSale = true;
+        }
+      }
+
+      return {
+        ...product,
+        category: categoryId,
+        price,
+        salePrice,
+        isOnSale
+      };
     });
-    
+
     const createdProducts = await Product.insertMany(updatedSampleProducts);
-    
+
     // Create orders with user and product references
     console.log('Creating orders...');
     const updatedSampleOrders = sampleOrders.map((order, index) => {
       const user = createdUsers[index % createdUsers.length];
       const product = createdProducts[index % createdProducts.length];
-      
+
       return {
         ...order,
         user: user._id,
@@ -548,15 +589,15 @@ const seedDatabase = async () => {
         totalAmount: ((product.variants[0].salePrice || product.variants[0].price) * order.items.reduce((sum, item) => sum + item.quantity, 0) * 1.1) + 500 - ((product.variants[0].salePrice || product.variants[0].price) * 0.1)
       };
     });
-    
+
     await Order.insertMany(updatedSampleOrders);
-    
+
     console.log('Database seeded successfully!');
     console.log(`${createdCategories.length} categories created`);
     console.log(`${createdUsers.length} users created`);
     console.log(`${createdProducts.length} products created`);
     console.log(`${sampleOrders.length} orders created`);
-    
+
     process.exit(0);
   } catch (error) {
     console.error('Error seeding database:', error);

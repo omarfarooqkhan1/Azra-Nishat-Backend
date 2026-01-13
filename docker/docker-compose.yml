@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   mongodb:
     image: mongo:5.0
@@ -12,7 +10,6 @@ services:
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD:-password}
     volumes:
       - mongodb_data:/data/db
-      - ./docker/mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
     networks:
       - ecommerce-network
 
@@ -29,14 +26,16 @@ services:
     command: redis-server --appendonly yes
 
   app:
-    build: .
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
     container_name: azra-nishat-app
     restart: always
     ports:
       - "5000:5000"
     environment:
       - NODE_ENV=production
-      - MONGODB_URI=mongodb://mongodb:27017/azra-nishat-ecommerce
+      - MONGODB_URI=mongodb://${MONGO_USERNAME:-admin}:${MONGO_PASSWORD:-password}@mongodb:27017/azra-nishat-ecommerce?authSource=admin
       - REDIS_URL=redis://redis:6379
       - JWT_SECRET=${JWT_SECRET:-your-super-secret-jwt-key-change-in-production}
       - CORS_ORIGIN=${CORS_ORIGIN:-*}
