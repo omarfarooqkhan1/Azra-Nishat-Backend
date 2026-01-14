@@ -21,6 +21,7 @@ const logger = require('./utils/logger');
 const { requestLogger } = require('./middlewares/logger');
 const swaggerUi = require('swagger-ui-express');
 const specs = require('../swaggerDef');
+const { connectRedis } = require('./config/redis');
 
 // Import routes
 const routes = require('./routes');
@@ -37,7 +38,8 @@ app.use(requestLogger);
 // Rate limiting
 const limiter = rateLimit({
   windowMs: 10 * 60 * 1000, // 10 minutes
-  max: 100 // Limit each IP to 100 requests per windowMs
+  max: process.env.NODE_ENV === 'development' ? 1000 : 100, // Higher limit for development
+  skip: (req) => req.method === 'OPTIONS' || (process.env.NODE_ENV === 'development' && process.env.SKIP_RATE_LIMIT === 'true')
 });
 app.use(limiter);
 
@@ -140,10 +142,15 @@ app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
 
-const server = app.listen(PORT, () => {
-  logger.info(`Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
-  logger.info(`Swagger UI available at http://localhost:${PORT}/api-docs`);
-});
+(async () => {
+  // Connect to Redis
+  await connectRedis();
+
+  const server = app.listen(PORT, () => {
+    logger.info(`Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
+    logger.info(`Swagger UI available at http://localhost:${PORT}/api-docs`);
+  });
+})();
 
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (err) => {

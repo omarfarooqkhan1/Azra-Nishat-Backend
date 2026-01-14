@@ -164,29 +164,35 @@ const login = async (req, res, next) => {
   try {
     logger.info('User login attempt', { email: req.body.email, ip: req.ip });
 
-    const { email, password } = req.body;
+    // If passport middleware was used, user is already authenticated and attached to req.user
+    let user = req.user;
 
-    // Validate email and password
-    if (!email || !password) {
-      logger.warn('User login failed - missing credentials', { email });
-      return next(new ValidationError('Please provide an email and password'));
-    }
-
-    // Check for user
-    const user = await User.findOne({ email }).select('+password');
+    // If no passport middleware, do manual authentication
     if (!user) {
-      logger.warn('User login failed - user not found', { email });
-      return next(new UnauthorizedError('Invalid credentials'));
+      const { email, password } = req.body;
+
+      // Validate email and password
+      if (!email || !password) {
+        logger.warn('User login failed - missing credentials', { email });
+        return next(new ValidationError('Please provide an email and password'));
+      }
+
+      // Check for user
+      user = await User.findOne({ email }).select('+password');
+      if (!user) {
+        logger.warn('User login failed - user not found', { email });
+        return next(new UnauthorizedError('Invalid credentials'));
+      }
+
+      // Check if password matches
+      const isMatch = await user.matchPassword(password);
+      if (!isMatch) {
+        logger.warn('User login failed - invalid password', { email });
+        return next(new UnauthorizedError('Invalid credentials'));
+      }
     }
 
-    // Check if password matches
-    const isMatch = await user.matchPassword(password);
-    if (!isMatch) {
-      logger.warn('User login failed - invalid password', { email });
-      return next(new UnauthorizedError('Invalid credentials'));
-    }
-
-    logger.info('User login successful', { userId: user._id, email });
+    logger.info('User login successful', { userId: user._id, email: user.email });
 
     // Create token
     const token = user.getSignedJwtToken();

@@ -290,9 +290,9 @@ router.post('/register', validate(userSchema), authController.register);
 // @desc    Login user
 // @route   POST /api/v1/auth/login
 // @access  Public
-router.post('/login', validate(loginSchema), 
-  passport.authenticate('local', { session: false }),
-  authController.login
+router.post('/login',
+    validate(loginSchema),
+    authController.login
 );
 
 // @desc    Get current logged in user
