@@ -11,6 +11,28 @@ const generateSlug = (text) => {
     .replace(/-+$/, '');          // Trim - from end
 };
 
+// Utility function to generate unique SKU
+const generateUniqueSku = (productName, variantIndex = 0) => {
+  // Get product prefix from name (first 3 letters, uppercase)
+  const productPrefix = productName 
+    ? productName.substring(0, 3).toUpperCase().replace(/\s/g, '')
+    : 'PRD';
+  
+  // Generate timestamp component (last 4 digits of current timestamp)
+  const timestamp = Date.now().toString().slice(-4);
+  
+  // Generate random alphanumeric component
+  const random = Math.random().toString(36).substring(2, 5).toUpperCase();
+  
+  // Add variant suffix if not the first variant
+  const variantSuffix = variantIndex > 0 ? `-V${variantIndex}` : '';
+  
+  // Combine all parts
+  const sku = `${productPrefix}-${timestamp}-${random}${variantSuffix}`;
+  
+  return sku;
+};
+
 // Utility function to validate email format
 const isValidEmail = (email) => {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -71,6 +93,7 @@ const validateProductVariant = (variant) => {
 
 module.exports = {
   generateSlug,
+  generateUniqueSku,
   isValidEmail,
   isValidPhone,
   formatCurrency,

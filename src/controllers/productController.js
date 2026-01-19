@@ -8,6 +8,8 @@ const {
   ForbiddenError
 } = require('../errors');
 const logger = require('../utils/logger');
+const { generateUniqueSku } = require('../utils/helpers');
+const { invalidateCache } = require('../middlewares/cache');
 const {
   createPaginationMetadata,
   parsePaginationParams,
@@ -261,9 +263,6 @@ const createProduct = async (req, res, next) => {
       productName: req.body.name
     });
 
-    // Add user to body
-    req.body.user = req.user.id;
-
     // Check if category exists
     if (req.body.category) {
       const category = await Category.findById(req.body.category);
@@ -276,6 +275,21 @@ const createProduct = async (req, res, next) => {
       }
     }
 
+    // Auto-generate SKU for variants that don't have one
+    if (req.body.variants && req.body.variants.length > 0) {
+      req.body.variants = req.body.variants.map((variant, index) => {
+        if (!variant.sku) {
+          variant.sku = generateUniqueSku(req.body.name, index);
+          logger.info('Auto-generated SKU for variant', {
+            variantIndex: index,
+            sku: variant.sku,
+            productName: req.body.name
+          });
+        }
+        return variant;
+      });
+    }
+
     const product = await Product.create(req.body);
 
     logger.info('Product created successfully', {
@@ -283,6 +297,9 @@ const createProduct = async (req, res, next) => {
       productName: product.name,
       userId: req.user.id
     });
+
+    // Invalidate all cache related to products and featured/new products
+    await invalidateCache('cache:*');
 
     res.status(201).json({
       success: true,
@@ -367,12 +384,11 @@ const updateProduct = async (req, res, next) => {
       return next(new NotFoundError('Product'));
     }
 
-    // Make sure user is product owner or admin
-    if (product.user && product.user.toString() !== req.user.id && req.user.role !== 'admin') {
+    // Make sure user is admin
+    if (req.user.role !== 'admin') {
       logger.warn('Update product - unauthorized access', {
         productId: req.params.id,
-        userId: req.user.id,
-        productOwner: product.user.toString()
+        userId: req.user.id
       });
       return next(new ForbiddenError());
     }
@@ -398,6 +414,9 @@ const updateProduct = async (req, res, next) => {
       productId: product._id,
       userId: req.user.id
     });
+
+    // Invalidate all cache
+    await invalidateCache('cache:*');
 
     res.status(200).json({
       success: true,
@@ -480,22 +499,24 @@ const deleteProduct = async (req, res, next) => {
       return next(new NotFoundError('Product'));
     }
 
-    // Make sure user is product owner or admin
-    if (product.user.toString() !== req.user.id && req.user.role !== 'admin') {
+    // Make sure user is admin
+    if (req.user.role !== 'admin') {
       logger.warn('Delete product - unauthorized access', {
         productId: req.params.id,
-        userId: req.user.id,
-        productOwner: product.user.toString()
+        userId: req.user.id
       });
       return next(new ForbiddenError());
     }
 
-    await product.remove();
+    await Product.findByIdAndDelete(req.params.id);
 
     logger.info('Product deleted successfully', {
-      productId: product._id,
+      productId: req.params.id,
       userId: req.user.id
     });
+
+    // Invalidate all cache
+    await invalidateCache('cache:*');
 
     res.status(200).json({
       success: true,

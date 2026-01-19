@@ -8,7 +8,6 @@ require('dotenv').config({ path: path.join(__dirname, '../.env') });
 const helmet = require('helmet');
 const xss = require('xss-clean');
 const hpp = require('hpp');
-const rateLimit = require('express-rate-limit');
 const mongoSanitize = require('express-mongo-sanitize');
 const compression = require('compression');
 const { connectDB } = require('./config/db');
@@ -34,28 +33,6 @@ const app = express();
 
 // Logging middleware - should be first
 app.use(requestLogger);
-
-// Rate limiting
-const limiter = rateLimit({
-  windowMs: 10 * 60 * 1000, // 10 minutes
-  max: process.env.NODE_ENV === 'development' ? 1000 : 100, // Higher limit for development
-  skip: (req) => req.method === 'OPTIONS' || (process.env.NODE_ENV === 'development' && process.env.SKIP_RATE_LIMIT === 'true')
-});
-app.use(limiter);
-
-// Redis rate limiter
-const redisClient = redis.createClient({
-  url: process.env.REDIS_URL || 'redis://localhost:6379'
-});
-
-redisClient.on('error', (err) => {
-  logger.error('Redis Client Error', { error: err.message });
-});
-
-redisClient.connect();
-
-const redisRateLimiter = require('./middlewares/rateLimiter')(redisClient);
-app.use('/api/', redisRateLimiter);
 
 // Enable CORS
 const corsOptions = {

@@ -9,7 +9,7 @@ const redisRateLimiter = (windowMs = 900000, max = 100) => {
         return next();
       }
 
-      // Skip rate limiting in development if needed
+      // Skip rate limiting in development if enabled
       if (process.env.NODE_ENV === 'development' && process.env.SKIP_RATE_LIMIT === 'true') {
         return next();
       }

@@ -25,26 +25,6 @@ services:
       - ecommerce-network
     command: redis-server --appendonly yes
 
-  app:
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile
-    container_name: azra-nishat-app
-    restart: always
-    ports:
-      - "5000:5000"
-    environment:
-      - NODE_ENV=production
-      - MONGODB_URI=mongodb://${MONGO_USERNAME:-admin}:${MONGO_PASSWORD:-password}@mongodb:27017/azra-nishat-ecommerce?authSource=admin
-      - REDIS_URL=redis://redis:6379
-      - JWT_SECRET=${JWT_SECRET:-your-super-secret-jwt-key-change-in-production}
-      - CORS_ORIGIN=${CORS_ORIGIN:-*}
-    depends_on:
-      - mongodb
-      - redis
-    networks:
-      - ecommerce-network
-
 networks:
   ecommerce-network:
     driver: bridge
